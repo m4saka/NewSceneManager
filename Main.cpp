@@ -16,7 +16,7 @@ struct GameData
 	int32 score = 0;
 };
 
-using MyApp = My::SceneManager<String, GameData>;
+using MyApp = My::SceneManager<GameData>;
 
 class Game;
 class Result;
@@ -24,23 +24,22 @@ class Result;
 class Title : public MyApp::Scene
 {
 public:
-	explicit Title(const InitData& init)
-		: IScene{ init }
+	Title()
 	{
-		Print << getState();
+		Print << U"Title";
 	}
 
-	void update() override
+	void update(MyApp& sceneManager) override
 	{
 		if (MouseL.down())
 		{
-			changeScene(U"Game", 2.0s);
+			sceneManager.changeScene(std::make_unique<Game>(sceneManager), 2.0s);
 		}
 	}
 
-	void draw() const override
+	void draw(const MyApp& sceneManager) const override
 	{
-		getData().font(U"Title")
+		sceneManager.getData().font(U"Title")
 			.drawAt(Scene::Center());
 	}
 };
@@ -48,26 +47,29 @@ public:
 class Game : public MyApp::Scene
 {
 public:
-	explicit Game(const InitData& init)
-		: IScene{ init }
+	explicit Game(MyApp& sceneManager)
 	{
-		Print << getState();
-		getData().score = 0;
+		Print << U"Game";
+		sceneManager.getData().score = 0;
 	}
-	void update() override
+
+	void update(MyApp& sceneManager) override
 	{
 		if (MouseL.down())
 		{
-			changeScene(U"Result", 2.0s);
+			sceneManager.changeScene<Result>(2.0s);
 		}
-		++getData().score;
+		++sceneManager.getData().score;
+
+		Stopwatch{StartImmediately::Yes}.start();
 	}
-	void draw() const override
+
+	void draw(const MyApp& sceneManager) const override
 	{
-		const Font& font = getData().font;
+		const Font& font = sceneManager.getData().font;
 		font(U"Game")
 			.drawAt(Scene::Center());
-		font(getData().score)
+		font(sceneManager.getData().score)
 			.drawAt(Scene::Center().movedBy(0, 60));
 	}
 };
@@ -75,26 +77,25 @@ public:
 class Result : public MyApp::Scene
 {
 public:
-	explicit Result(const InitData& init)
-		: IScene{ init }
+	Result()
 	{
-		Print << getState();
+		Print << U"Result";
 	}
 
-	void update() override
+	void update(MyApp& sceneManager) override
 	{
 		if (MouseL.down())
 		{
-			changeScene(U"Title", 2.0s);
+			sceneManager.changeScene<Title>(2.0s);
 		}
 	}
 
-	void draw() const override
+	void draw(const MyApp& sceneManager) const override
 	{
-		const Font& font = getData().font;
+		const Font& font = sceneManager.getData().font;
 		font(U"Result")
 			.drawAt(Scene::Center());
-		font(getData().score)
+		font(sceneManager.getData().score)
 			.drawAt(Scene::Center().movedBy(0, 60));
 	}
 };
@@ -105,10 +106,8 @@ void Main()
 
 	MyApp manager;
 	manager
-		.add<Title>(U"Title")
-		.add<Game>(U"Game")
-		.add<Result>(U"Result")
-		.setFadeColor(ColorF{ 1.0 });
+		.setFadeColor(ColorF{ 1.0 })
+		.init<Title>();
 
 	while (System::Update())
 	{

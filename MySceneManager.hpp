@@ -15,114 +15,60 @@
 
 namespace My
 {
-	template <class State, class Data> class SceneManager;
+	template <class Data> class SceneManager;
 
 	/// @brief シーンのインタフェース
-	/// @tparam State シーンを区別するキーの型
 	/// @tparam Data シーン間で共有するデータの型
-	template <class State, class Data>
+	template <class Data>
 	class IScene : Uncopyable
 	{
 	public:
 
-		using State_t = State;
-
 		using Data_t = Data;
 
-		struct InitData
-		{
-			State_t state;
-
-			std::shared_ptr<Data_t> _s;
-
-			SceneManager<State_t, Data_t>*& _m;
-
-			SIV3D_NODISCARD_CXX20
-			InitData() = default;
-
-			SIV3D_NODISCARD_CXX20
-			InitData(const State_t& _state, const std::shared_ptr<Data_t>& data, SceneManager<State_t, Data_t>*& manager);
-		};
-
-	public:
-
 		SIV3D_NODISCARD_CXX20
-		explicit IScene(const InitData& init);
+		IScene() = default;
 
 		virtual ~IScene() = default;
 
 		/// @brief フェードイン時の更新処理です。
+		/// @param sceneManager シーン管理
 		/// @param t フェードインの進度 [0.0, 1.0]
-		virtual void updateFadeIn([[maybe_unused]] double t) {}
+		virtual void updateFadeIn([[maybe_unused]] SceneManager<Data>& sceneManager, [[maybe_unused]] double t) {}
 
 		/// @brief 通常時の更新処理です。
-		virtual void update() {}
+		/// @param sceneManager シーン管理
+		virtual void update([[maybe_unused]] SceneManager<Data>& sceneManager) {}
 
 		/// @brief フェードアウト時の更新処理です。
+		/// @param sceneManager シーン管理
 		/// @param t フェードアウトの進度 [0.0, 1.0]
-		virtual void updateFadeOut([[maybe_unused]] double t) {}
+		virtual void updateFadeOut([[maybe_unused]] SceneManager<Data>& sceneManager, [[maybe_unused]] double t) {}
 
 		/// @brief 通常時の描画処理です。
-		virtual void draw() const {}
+		/// @param sceneManager シーン管理
+		virtual void draw([[maybe_unused]] const SceneManager<Data>& sceneManager) const {}
 
 		/// @brief フェードイン時の描画処理です。
+		/// @param sceneManager シーン管理
 		/// @param t フェードインの進度 [0.0, 1.0]
-		virtual void drawFadeIn(double t) const;
+		virtual void drawFadeIn(const SceneManager<Data>& sceneManager, double t) const;
 
 		/// @brief フェードアウト時の描画処理です。
+		/// @param sceneManager シーン管理
 		/// @param t フェードアウトの進度 [0.0, 1.0]
-		virtual void drawFadeOut(double t) const;
-
-	protected:
-
-		/// @brief 現在のステートのキーを取得します。
-		/// @return 現在のステートのキー
-		[[nodiscard]]
-		const State_t& getState() const;
-
-		/// @brief 共有データへの参照を取得します。
-		/// @return 共有データへの参照
-		template <class DataType = Data, std::enable_if_t<not std::disjunction_v<std::is_array<DataType>, std::is_void<DataType>>>* = nullptr>
-		[[nodiscard]]
-		DataType& getData() const;
-
-		/// @brief シーンの変更をリクエストします。
-		/// @param state 次のシーンのキー
-		/// @param transitionTime フェードイン・アウトの時間
-		/// @param crossFade クロスフェードを有効にするか
-		/// @return シーンの変更が開始される場合 true, それ以外の場合は false
-		bool changeScene(const State_t& state, const Duration& transitionTime = Duration{ 2.0 }, CrossFade crossFade = CrossFade::No);
-
-		/// @brief シーンの変更をリクエストします。
-		/// @param state 次のシーンのキー
-		/// @param transitionTimeMillisec フェードイン・アウトの時間（ミリ秒）
-		/// @param crossFade クロスフェードを有効にするか
-		/// @return シーンの変更が開始される場合 true, それ以外の場合は false
-		bool changeScene(const State_t& state, int32 transitionTimeMillisec, CrossFade crossFade = CrossFade::No);
-
-		/// @brief エラーの発生を通知します。
-		/// @remark この関数を呼ぶと、以降のこのシーンを管理するクラスの `SceneManager::update()` が false を返します。
-		void notifyError();
-
-	private:
-
-		State_t m_state;
-
-		std::shared_ptr<Data_t> m_data;
-
-		SceneManager<State_t, Data_t>*& m_manager;
+		virtual void drawFadeOut(const SceneManager<Data>& sceneManager, double t) const;
 	};
 
 	/// @brief シーン遷移管理
-	/// @tparam State シーンを区別するキーの型
 	/// @tparam Data シーン間で共有するデータの型
-	template <class State, class Data = void>
+	template <class Data = void>
 	class SceneManager
 	{
 	public:
 
 		/// @brief シーンのインタフェース型
-		using Scene = IScene<State, Data>;
+		using Scene = IScene<Data>;
 
 		/// @brief シーン管理を初期化します。
 		SIV3D_NODISCARD_CXX20
@@ -143,17 +89,18 @@ namespace My
 
 		SceneManager& operator =(SceneManager&& other) noexcept;
 
-		/// @brief シーンを登録します。
-		/// @tparam SceneType シーンの型
-		/// @param state シーンのキー
-		/// @return シーンの登録に成功した場合 true, それ以外の場合は false
+		/// @brief 最初のシーンを初期化します。
+		/// @tparam SceneType 最初のシーンの型
+		/// @return 初期化に成功した場合 true, それ以外の場合は false
 		template <class SceneType>
-		SceneManager& add(const State& state);
+		bool init();
 
 		/// @brief 最初のシーンを初期化します。
-		/// @param state 最初のシーン
+		/// @tparam SceneType 最初のシーンの型
+		/// @param firstScene 最初のシーン
 		/// @return 初期化に成功した場合 true, それ以外の場合は false
-		bool init(const State& state);
+		template <class SceneType>
+		bool init(std::unique_ptr<SceneType>&& firstScene);
 
 		/// @brief 現在のシーンの更新処理のみを行います。
 		/// @remark 通常はこの関数は使用しません。
@@ -169,28 +116,48 @@ namespace My
 		bool update();
 
 		/// @brief 共有データを取得します。
-		/// @return 共有データへのポインタ
+		/// @return 共有データへの参照
 		[[nodiscard]]
-		std::shared_ptr<Data> get() noexcept;
+		Data& getData();
 
 		/// @brief 共有データを取得します。
-		/// @return 共有データへのポインタ
+		/// @return 共有データへの参照
 		[[nodiscard]]
-		const std::shared_ptr<const Data> get() const noexcept;
+		const Data& getData() const;
 
 		/// @brief シーンを変更します。
-		/// @param state 次のシーンのキー
+		/// @tparam SceneType 次のシーンの型
 		/// @param transitionTime フェードイン・アウトの時間
 		/// @param crossFade ロスフェードを有効にするか
 		/// @return シーンの変更が開始される場合 true, それ以外の場合は false
-		bool changeScene(const State& state, const Duration& transitionTime = Duration{ 2.0 }, CrossFade crossFade = CrossFade::No);
+		template<class SceneType>
+		bool changeScene(const Duration& transitionTime = Duration{ 2.0 }, const CrossFade crossFade = CrossFade::No);
 
 		/// @brief シーンを変更します。
-		/// @param state 次のシーンのキー
+		/// @tparam SceneType 次のシーンの型
+		/// @param nextScene 次のシーン
+		/// @param transitionTime フェードイン・アウトの時間
+		/// @param crossFade ロスフェードを有効にするか
+		/// @return シーンの変更が開始される場合 true, それ以外の場合は false
+		template <class SceneType>
+		bool changeScene(std::unique_ptr<SceneType>&& nextScene, const Duration& transitionTime = Duration{ 2.0 }, CrossFade crossFade = CrossFade::No);
+
+		/// @brief シーンを変更します。
+		/// @tparam SceneType 次のシーンの型
 		/// @param transitionTimeMillisec フェードイン・アウトの時間（ミリ秒）
 		/// @param crossFade クロスフェードを有効にするか
 		/// @return シーンの変更が開始される場合 true, それ以外の場合は false
-		bool changeScene(const State& state, int32 transitionTimeMillisec, CrossFade crossFade = CrossFade::No);
+		template<class SceneType>
+		bool changeScene(int32 transitionTimeMillisec, CrossFade crossFade);
+
+		/// @brief シーンを変更します。
+		/// @tparam SceneType 次のシーンの型
+		/// @param nextScene 次のシーン
+		/// @param transitionTimeMillisec フェードイン・アウトの時間（ミリ秒）
+		/// @param crossFade クロスフェードを有効にするか
+		/// @return シーンの変更が開始される場合 true, それ以外の場合は false
+		template <class SceneType>
+		bool changeScene(std::unique_ptr<SceneType>&& nextScene, int32 transitionTimeMillisec, CrossFade crossFade = CrossFade::No);
 
 		/// @brief デフォルトのフェードイン・アウトに使う色を設定します。
 		/// @param color デフォルトのフェードイン・アウトに使う色
@@ -208,25 +175,15 @@ namespace My
 
 	private:
 
-		using Scene_t = std::shared_ptr<IScene<State, Data>>;
+		using Scene_t = std::shared_ptr<IScene<Data>>;
 
 		using FactoryFunction_t = std::function<Scene_t()>;
-
-		std::unique_ptr<SceneManager*> m_sceneManagerPtr;
-
-		HashTable<State, FactoryFunction_t> m_factories;
 
 		std::shared_ptr<Data> m_data;
 
 		Scene_t m_current;
 
 		Scene_t m_next;
-
-		State m_currentState;
-
-		State m_nextState;
-
-		Optional<State> m_first;
 
 		enum class TransitionState
 		{
